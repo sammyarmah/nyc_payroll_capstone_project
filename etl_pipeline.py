@@ -3,13 +3,15 @@ import pandas as pd
 import os 
 import io
 from azure.storage.blob import BlobServiceClient, BlobClient
+from dotenv import load_dotenv
+
 
 # Extraction of raw data files
-agency_df = pd.read_csv(r'nyc_payroll_capstone_project\raw_files\AgencyMaster.csv')
-employemnt_df = pd.read_csv(r'nyc_payroll_capstone_project\raw_files\EmpMaster.csv')
-payroll_2020_df = pd.read_csv(r'nyc_payroll_capstone_project\raw_files\nycpayroll_2020.csv')
-payroll_2021_df = pd.read_csv(r'nyc_payroll_capstone_project\raw_files\nycpayroll_2021.csv')
-title_df = pd.read_csv(r'nyc_payroll_capstone_project\raw_files\TitleMaster.csv')
+agency_df = pd.read_csv(r'raw_files\AgencyMaster.csv')
+employemnt_df = pd.read_csv(r'raw_files\EmpMaster.csv')
+payroll_2020_df = pd.read_csv(r'raw_files\nycpayroll_2020.csv')
+payroll_2021_df = pd.read_csv(r'raw_files\nycpayroll_2021.csv')
+title_df = pd.read_csv(r'raw_files\TitleMaster.csv')
 
 # cleaning the data
 title_df.fillna({
@@ -30,8 +32,8 @@ payroll_combined = pd.concat([payroll_2020_df, payroll_2021_df], ignore_index=Tr
 
 # filled payroll_combined with missing values
 payroll_combined.fillna({
-    'AgencyID' : 0.0,
-    'AgencyCode': 0.0
+    'AgencyID' : 0,
+    'AgencyCode': 0
 }, inplace=True)
 
 # payroll_facts_table
@@ -42,20 +44,21 @@ payroll_facts_table = payroll_combined.merge(employee_dim, on= ['EmployeeID', 'L
                                         'LeaveStatusasofJune30', 'BaseSalary','PayBasis', 'RegularHours', 'RegularGrossPaid', 'OTHours', 'TotalOTPaid', 'TotalOtherPay' ]]
 
 # loading files into csv
-employee_dim.to_csv(r'nyc_payroll_capstone_project\dataset\employee_dim.csv', index=False)
-title_dim.to_csv(r'nyc_payroll_capstone_project\dataset\title_dim.csv', index=False)
-agency_dim.to_csv(r'nyc_payroll_capstone_project\dataset\agency_dim.csv', index=False)
-payroll_facts_table.to_csv(r'nyc_payroll_capstone_project\dataset\payroll_facts_table.csv', index=False)
+employee_dim.to_csv(r'dataset\employee_dim.csv', index=False)
+title_dim.to_csv(r'dataset\title_dim.csv', index=False)
+agency_dim.to_csv(r'dataset\agency_dim.csv', index=False)
+payroll_facts_table.to_csv(r'dataset\payroll_facts_table.csv', index=False)
 
 print('files have been loaded temporarily into local machine')
 
 # setting the Azure blob connection and load data
-connect_str = 'DefaultEndpointsProtocol=https;AccountName=nycpayrollstorageacc;AccountKey=zHgC78onYqdSlJtkZAbWwzE192tQ5buJlJDshBbDgZaDNzytP3UMcNdL752x/oijdmjjTBCiQ8eB+AStk8qpfg==;EndpointSuffix=core.windows.net'
+load_dotenv()
+
+connect_str = os.getenv('CONNECT_STR')
 blob_service_client = BlobServiceClient.from_connection_string(connect_str)
 
-container_name = 'nycpayrollcontainer'
+container_name = os.getenv('CONTAINER_NAME')
 container_client = blob_service_client.get_container_client(container_name)
-
 
 
 # loading data into Azure blob storage as a parquet file
@@ -67,8 +70,8 @@ def upload_df_to_blob_as_parquet(df, container_client,blob_name):
     blob_client.upload_blob(buffer, blob_type="BlockBlob", overwrite=True)
     print(f'{blob_name} uploaded to Blob storage successfully')
     
-# files uploaded to the Azure blob storage
 upload_df_to_blob_as_parquet(agency_dim, container_client, 'rawdata/agency_dim.parquet')
 upload_df_to_blob_as_parquet(employee_dim, container_client, 'rawdata/employee_dim.parquet')
 upload_df_to_blob_as_parquet(payroll_facts_table, container_client, 'rawdata/payroll_facts_table.parquet')
 upload_df_to_blob_as_parquet(title_dim, container_client, 'rawdata/title_dim.parquet')
+
